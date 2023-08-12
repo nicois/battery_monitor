@@ -1,5 +1,10 @@
-module nicois/battery_monitor
+module github.com/nicois/battery_monitor
 
-go 1.18
+go 1.22.2
 
-require github.com/BurntSushi/toml v1.2.1 // indirect
+require (
+	github.com/BurntSushi/toml v1.4.0
+	go.uber.org/zap v1.27.0
+)
+
+require go.uber.org/multierr v1.10.0 // indirect
