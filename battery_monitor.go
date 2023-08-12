@@ -13,7 +13,20 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-func monitor[P power_sources.PowerSource, A power_sources.Alerter, S ntfy.Sender](p P, a A, s S) {
+type Alerter interface {
+	Alerted(int)
+	ShouldAlert(int) (bool, string)
+}
+
+type Sender interface {
+	Send(ntfy.Message) error
+}
+
+type PowerSource interface {
+	Get_charge() (int, error)
+}
+
+func monitor[P PowerSource, A Alerter, S Sender](p P, a A, s S) {
 	tagsmap := map[string]string{"max": "skull", "min": "partying_face", "high": "triangular_flag_on_post"}
 	for {
 		level, err := p.Get_charge()
@@ -31,6 +44,7 @@ func monitor[P power_sources.PowerSource, A power_sources.Alerter, S ntfy.Sender
 		}
 		if err != nil {
 			log.Println(err)
+			time.Sleep(time.Minute * 10)
 		}
 		time.Sleep(time.Minute)
 	}
@@ -63,6 +77,6 @@ func main() {
 	config := get_config()
 	sender := ntfy.Create(config.Topic)
 	battery := &power_sources.Battery{}
-	alerter := &power_sources.NormalAlerter{}
-	monitor(battery, alerter, sender)
+	alerter := power_sources.CreateNormalAlerter()
+	monitor(battery, alerter, &sender)
 }
