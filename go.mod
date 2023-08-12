@@ -1,4 +1,4 @@
-module nicois/battery_monitor
+module github.com/nicois/battery_monitor
 
 go 1.18
 

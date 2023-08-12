@@ -8,10 +8,6 @@ import (
 	"time"
 )
 
-type PowerSource interface {
-	Get_charge() (int, error)
-}
-
 type NormalAlerter struct {
 	last_alert_time  time.Time
 	last_alert_level int
@@ -27,6 +23,9 @@ func (a NormalAlerter) ShouldAlert(new_level int) (bool, string) {
 	if new_level < 80 && a.last_alert_level-new_level > 10 {
 		return true, "normal"
 	}
+	if new_level > a.last_alert_level+10 {
+		return true, "min"
+	}
 	if time.Since(a.last_alert_time) > time.Hour*24 {
 		return true, "min"
 	}
@@ -38,9 +37,8 @@ func (a *NormalAlerter) Alerted(level int) {
 	a.last_alert_level = level
 }
 
-type Alerter interface {
-	Alerted(int)
-	ShouldAlert(int) (bool, string)
+func CreateNormalAlerter() *NormalAlerter {
+	return &NormalAlerter{last_alert_level: 200}
 }
 
 type Battery struct {

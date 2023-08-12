@@ -30,11 +30,7 @@ func (n _ntfy) Send(message Message) error {
 	return nil
 }
 
-type Sender interface {
-	Send(Message) error
-}
-
-func Create(topic string) Sender {
+func Create(topic string) _ntfy {
 	ntfy := _ntfy{url: "https://ntfy.sh/" + topic}
 	return ntfy
 }
