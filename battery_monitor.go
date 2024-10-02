@@ -41,7 +41,7 @@ type Alerter interface {
 }
 
 type Sender interface {
-	Send(ctx context.Context, message ntfy.Message) error
+	Send(ctx context.Context, logger *zap.Logger, message ntfy.Message) error
 }
 
 type PowerSource interface {
@@ -80,7 +80,7 @@ func monitor[P PowerSource, A Alerter, S Sender](ctx context.Context, p P, a A, 
 			if hostname != "" {
 				headers["Title"] = hostname
 			}
-			if err = s.Send(ctx, ntfy.Message{Text: body, Headers: headers}); err == nil {
+			if err = s.Send(ctx, logger, ntfy.Message{Text: body, Headers: headers}); err == nil {
 				a.Alerted(*status)
 			} else {
 				logger.Warn("While trying to send an alert", zap.Error(err))

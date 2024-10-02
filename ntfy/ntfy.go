@@ -5,9 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
 type Message struct {
@@ -19,8 +20,8 @@ type ntfy struct {
 	url string
 }
 
-func (n *ntfy) Send(ctx context.Context, message Message) error {
-	log.Printf("Sending message %q with headers %v\n", message.Text, message.Headers)
+func (n *ntfy) Send(ctx context.Context, logger *zap.Logger, message Message) error {
+	logger.Info("Sending to NTFY", zap.String("message", message.Text), zap.String("headers", fmt.Sprintf("%+v", message.Headers)))
 	req, _ := http.NewRequestWithContext(ctx, "POST", n.url, strings.NewReader(message.Text))
 	for k, v := range message.Headers {
 		req.Header.Set(k, v)
@@ -29,7 +30,7 @@ func (n *ntfy) Send(ctx context.Context, message Message) error {
 		if resp.StatusCode >= 400 {
 			defer resp.Body.Close()
 			if body, err := io.ReadAll(resp.Body); err == nil {
-				log.Printf("Got response from ntfy server: %v: %v\n", resp, string(body))
+				logger.Info("Got response from ntfy server", zap.Int("response", resp.StatusCode), zap.String("body", string(body)))
 			} else {
 				return fmt.Errorf("While reading response from ntfy: %w", err)
 			}

@@ -26,14 +26,17 @@ func (a NormalAlerter) ShouldAlert(logger *zap.Logger, newStatus *Status) (bool,
 		if newStatus.charge < 0.40 {
 			return true, "max"
 		}
-		if newStatus.charge < 0.50 {
+		if newStatus.charge < 0.45 {
 			return true, "high"
 		}
-		if newStatus.charge < 0.60 {
+		if newStatus.charge < 0.50 {
 			return true, "default"
 		}
-		if newStatus.charge < 0.80 {
+		if newStatus.charge < 0.60 {
 			return true, "low"
+		}
+		if newStatus.charge < 0.80 {
+			return false, "min"
 		}
 	}
 	if newStatus.charge >= a.lastStatus.charge+.1 {
@@ -45,8 +48,6 @@ func (a NormalAlerter) ShouldAlert(logger *zap.Logger, newStatus *Status) (bool,
 	if newStatus.timestamp.Sub(a.lastStatus.timestamp) >= time.Hour*4 {
 		if newStatus.charge > 0.80 {
 			return true, "default"
-		} else {
-			return true, "min"
 		}
 	}
 	return false, ""
