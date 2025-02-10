@@ -49,21 +49,11 @@ type PowerSource interface {
 	GetStatus(ctx context.Context) (*power_sources.Status, error)
 }
 
-func monitor[P PowerSource, A Alerter, S Sender](ctx context.Context, p P, a A, s S) {
+func monitor[P PowerSource, A Alerter](ctx context.Context, p P, a A) {
 	ticker := time.NewTicker(time.Minute)
 	haToken := os.Getenv("HA_REST_API_TOKEN")
 	sensor := os.Getenv("HA_SENSOR")
 	ha := NewHomeAssistantRestApi(haToken)
-	tagsmap := map[string]string{
-		"max":  "skull",
-		"min":  "partying_face",
-		"high": "triangular_flag_on_post",
-	}
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = ""
-	}
-	var previousStatus *power_sources.Status
 	for {
 		status, err := p.GetStatus(ctx)
 		if err != nil {
@@ -78,28 +68,6 @@ func monitor[P PowerSource, A Alerter, S Sender](ctx context.Context, p P, a A, 
 			"%",
 			2,
 		))
-		if previousStatus == nil {
-			previousStatus = status
-		}
-		if ratio := previousStatus.Charge() / status.Charge(); ratio <= 0.99 || ratio >= 1.01 {
-			logger.Info("current status", zap.Inline(*status))
-			previousStatus = status
-		}
-		if ok, priority := a.ShouldAlert(logger, status); ok {
-			headers := map[string]string{"Priority": priority}
-			if tags, ok := tagsmap[priority]; ok {
-				headers["Tags"] = tags
-			}
-			body := fmt.Sprintf("Level is %v", status)
-			if hostname != "" {
-				headers["Title"] = hostname
-			}
-			if err = s.Send(ctx, logger, ntfy.Message{Text: body, Headers: headers}); err == nil {
-				a.Alerted(*status)
-			} else {
-				logger.Warn("While trying to send an alert", zap.Error(err))
-			}
-		}
 		select {
 		case <-ctx.Done():
 			return
@@ -144,13 +112,11 @@ func main() {
 		}
 	}()
 
-	config := get_config()
-	sender := ntfy.Create(config.Topic)
 	battery := power_sources.Battery()
 	status, err := battery.GetStatus(ctx)
 	if err != nil {
 		panic(err)
 	}
 	alerter := power_sources.CreateNormalAlerter(*status)
-	monitor(ctx, battery, alerter, sender)
+	monitor(ctx, battery, alerter)
 }
