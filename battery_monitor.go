@@ -51,7 +51,8 @@ type PowerSource interface {
 
 func monitor[P PowerSource, A Alerter, S Sender](ctx context.Context, p P, a A, s S) {
 	ticker := time.NewTicker(time.Minute)
-	haToken := os.Getenv("HA_TOKEN")
+	haToken := os.Getenv("HA_REST_API_TOKEN")
+	sensor := os.Getenv("HA_SENSOR")
 	ha := NewHomeAssistantRestApi(haToken)
 	tagsmap := map[string]string{
 		"max":  "skull",
@@ -65,18 +66,18 @@ func monitor[P PowerSource, A Alerter, S Sender](ctx context.Context, p P, a A, 
 	var previousStatus *power_sources.Status
 	for {
 		status, err := p.GetStatus(ctx)
-		ha.UpdateNumericState(
-			ctx,
-			"sensor.aiven_fedora_laptop_battery_3",
-			float32(status.Charge()),
-			"%",
-			0,
-		)
 		if err != nil {
 			logger.Warn("While getting charge", zap.Error(err))
 			time.Sleep(time.Minute * 10)
 			continue
 		}
+		Must0(ha.UpdateNumericState(
+			ctx,
+			sensor,
+			float32(100*status.Charge()),
+			"%",
+			2,
+		))
 		if previousStatus == nil {
 			previousStatus = status
 		}
