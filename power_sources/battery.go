@@ -1,10 +1,10 @@
-// /usr/bin/true; exec /usr/bin/env go run "$0" "$@"
 package power_sources
 
 import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +19,8 @@ type NormalAlerter struct {
 
 func (a NormalAlerter) ShouldAlert(logger *zap.Logger, newStatus *Status) (bool, string) {
 	logger.Debug("checking", zap.Object("new", *newStatus), zap.Object("previous", a.lastStatus))
-	if newStatus.state == a.lastStatus.state && newStatus.charge >= a.lastStatus.charge && newStatus.charge < 0.80 {
+	if newStatus.state == a.lastStatus.state && newStatus.charge >= a.lastStatus.charge &&
+		newStatus.charge < 0.80 {
 		return false, ""
 	}
 	if newStatus.charge*1.05 <= a.lastStatus.charge {
@@ -62,17 +63,21 @@ func CreateNormalAlerter(initialStatus Status) *NormalAlerter {
 }
 
 type battery struct {
+	path    string
 	total   float64
 	flavour string
 }
 
-func Battery() *battery {
-	b := &battery{}
-	for _, potentialFlavour := range []string{"energy", "charge"} {
-		b.flavour = potentialFlavour
-		if total, err := b.getFullLevel(); err == nil {
-			b.total = total
-			return b
+func NewBattery() *battery {
+	bats := Must(filepath.Glob("/sys/class/power_supply/BAT*"))
+	for _, bat := range bats {
+		b := &battery{path: bat}
+		for _, potentialFlavour := range []string{"energy", "charge"} {
+			b.flavour = potentialFlavour
+			if total, err := b.getFullLevel(); err == nil {
+				b.total = total
+				return b
+			}
 		}
 	}
 
@@ -109,7 +114,9 @@ func (s Status) Time() time.Time {
 }
 
 func (b battery) getFullLevel() (float64, error) {
-	byteValue, err := os.ReadFile(fmt.Sprintf("/sys/class/power_supply/BAT0/%v_full_design", b.flavour))
+	byteValue, err := os.ReadFile(
+		fmt.Sprintf("%v/%v_full_design", b.path, b.flavour),
+	)
 	if err == nil {
 		return strconv.ParseFloat(strings.TrimSpace(string(byteValue)), 64)
 	}
@@ -117,7 +124,7 @@ func (b battery) getFullLevel() (float64, error) {
 }
 
 func (b battery) getCurrentLevel() (float64, error) {
-	byteValue, err := os.ReadFile(fmt.Sprintf("/sys/class/power_supply/BAT0/%v_now", b.flavour))
+	byteValue, err := os.ReadFile(fmt.Sprintf("%v/%v_now", b.path, b.flavour))
 	if err == nil {
 		return strconv.ParseFloat(strings.TrimSpace(string(byteValue)), 64)
 	}
@@ -126,7 +133,7 @@ func (b battery) getCurrentLevel() (float64, error) {
 
 func (b *battery) GetStatus(ctx context.Context) (*Status, error) {
 	result := &Status{charge: -1, state: "", timestamp: time.Now()}
-	if status, err := os.ReadFile("/sys/class/power_supply/BAT0/status"); err == nil {
+	if status, err := os.ReadFile(fmt.Sprintf("%v/status", b.path)); err == nil {
 		result.state = strings.TrimSpace(string(status))
 	}
 

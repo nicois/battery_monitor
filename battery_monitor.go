@@ -49,11 +49,11 @@ type PowerSource interface {
 	GetStatus(ctx context.Context) (*power_sources.Status, error)
 }
 
-func monitor[P PowerSource, A Alerter](ctx context.Context, p P, a A) {
+func monitor[P PowerSource](ctx context.Context, p P) {
 	ticker := time.NewTicker(time.Minute)
 	haToken := os.Getenv("HA_REST_API_TOKEN")
 	sensor := os.Getenv("HA_SENSOR")
-	ha := NewHomeAssistantRestApi(haToken)
+	ha := NewHomeAssistantRestApi("https://qck.duckdns.org", haToken)
 	for {
 		status, err := p.GetStatus(ctx)
 		if err != nil {
@@ -112,11 +112,6 @@ func main() {
 		}
 	}()
 
-	battery := power_sources.Battery()
-	status, err := battery.GetStatus(ctx)
-	if err != nil {
-		panic(err)
-	}
-	alerter := power_sources.CreateNormalAlerter(*status)
-	monitor(ctx, battery, alerter)
+	battery := power_sources.NewBattery()
+	monitor(ctx, battery)
 }

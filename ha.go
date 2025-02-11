@@ -94,15 +94,15 @@ func WithTolerance(sensor string, tolerance SensorTolerance) haOption {
 	}
 }
 
-func NewHomeAssistantRestApi(token string, options ...haOption) *HaRestApi {
+func NewHomeAssistantRestApi(server, token string, options ...haOption) *HaRestApi {
 	result := &HaRestApi{
-		readOnly:           false,
+		readOnly:           false, // disregard attempts to send updates
 		readTimeout:        5 * time.Second,
-		valueCacheDuration: time.Hour,
+		valueCacheDuration: time.Hour, // retain a record of transmitted values for this long
 		writeTimeout:       5 * time.Second,
-		token:              token,
+		token:              token, // auth token
 		client:             &http.Client{},
-		server:             "https://qck.duckdns.org",
+		server:             server, // URL
 		lastValues:         make(map[string]LastValue),
 		lastNumericValues:  make(map[string]float32),
 		numericTolerances:  make(map[string]SensorTolerance),
@@ -122,6 +122,9 @@ type HaRestMessage struct {
 	Attributes HaAttributes `json:"attributes"`
 }
 
+// MarkAllUnavailable will set all known sensor values to
+// 'unavailable'. This prevents Home Assistant from incorrectly
+// thinking a value is unchanged when it is no longer getting updates.
 func (a *HaRestApi) MarkAllUnavailable(
 	ctx context.Context,
 ) {
@@ -228,11 +231,18 @@ func (a *HaRestApi) GetNumericState(
 	return float32(value), nil
 }
 
+// MonitorNumericState polls a sensor's state, verifying it
+// has the nominated unit. If a (sufficiently) different value
+// is detected, the returned atomic pointer's value is updated,
+// and (if not nil), an attempt is made to push the new value
+// to the specified channel.
+// Cancelling the provided context will terminate the polling operation.
 func (a *HaRestApi) MonitorNumericState(
 	ctx context.Context,
 	pollingPeriod time.Duration,
 	sensor string,
 	unit string,
+	c chan<- float32,
 ) *atomic.Int64 {
 	var value atomic.Int64
 	go func() {
@@ -256,6 +266,12 @@ func (a *HaRestApi) MonitorNumericState(
 						}
 					}
 					value.Store(int64(newValue))
+					if c != nil {
+						select {
+						case c <- newValue:
+						default:
+						}
+					}
 				} else {
 					logger.Info("problem polling sensor", zap.String("sensor", sensor), zap.Error(err))
 				}
