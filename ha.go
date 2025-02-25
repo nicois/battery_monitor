@@ -97,9 +97,9 @@ func WithTolerance(sensor string, tolerance SensorTolerance) haOption {
 func NewHomeAssistantRestApi(server, token string, options ...haOption) *HaRestApi {
 	result := &HaRestApi{
 		readOnly:           false, // disregard attempts to send updates
-		readTimeout:        5 * time.Second,
+		readTimeout:        15 * time.Second,
 		valueCacheDuration: time.Hour, // retain a record of transmitted values for this long
-		writeTimeout:       5 * time.Second,
+		writeTimeout:       15 * time.Second,
 		token:              token, // auth token
 		client:             &http.Client{},
 		server:             server, // URL

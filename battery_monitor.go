@@ -61,13 +61,13 @@ func monitor[P PowerSource](ctx context.Context, p P) {
 			time.Sleep(time.Minute * 10)
 			continue
 		}
-		Must0(ha.UpdateNumericState(
+		ha.UpdateNumericState(
 			ctx,
 			sensor,
 			float32(100*status.Charge()),
 			"%",
 			2,
-		))
+		)
 		select {
 		case <-ctx.Done():
 			return
