@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/user"
 	"syscall"
@@ -22,11 +23,11 @@ import (
 
 var logger *zap.Logger
 
-func initLogger(ctx context.Context) {
+func initLogger(_ context.Context) {
 	// config := zap.NewDevelopmentConfig()
 	config := zap.NewProductionConfig()
 
-	config.Level.SetLevel(zap.InfoLevel)
+	config.Level.SetLevel(zap.DebugLevel)
 
 	// from https://pkg.go.dev/time#pkg-constants
 	// config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.DateTime)
@@ -105,13 +106,14 @@ func get_config() Config {
 
 func main() {
 	ctx := context.Background()
-	var once = flag.Bool("once", true, "only run a single time")
+	var once = flag.Bool("once", false, "only run a single time")
 	flag.Parse()
 
 	initLogger(ctx)
 	defer func() {
 		if logger != nil {
-			if err := logger.Sync(); err != nil && !errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.ENOTTY) {
+			var pathError *fs.PathError
+			if err := logger.Sync(); err != nil && !errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.ENOTTY) && !errors.As(err, &pathError) {
 				fmt.Println(err)
 			}
 		}
