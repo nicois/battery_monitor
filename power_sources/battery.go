@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +17,10 @@ import (
 
 type NormalAlerter struct {
 	lastStatus Status
+}
+
+type PowerSource interface {
+	GetStatus(ctx context.Context) (*Status, error)
 }
 
 func (a NormalAlerter) ShouldAlert(logger *zap.Logger, newStatus *Status) (bool, string) {
@@ -68,7 +74,13 @@ type battery struct {
 	flavour string
 }
 
-func NewBattery() *battery {
+func NewBattery() PowerSource {
+	mb := &macBattery{}
+	if _, err := mb.GetStatus(context.Background()); err == nil {
+		return mb
+	} else {
+		fmt.Printf("mac error: %v\n", err)
+	}
 	bats := Must(filepath.Glob("/sys/class/power_supply/BAT*"))
 	for _, bat := range bats {
 		b := &battery{path: bat}
@@ -148,4 +160,29 @@ func (b *battery) GetStatus(ctx context.Context) (*Status, error) {
 	}
 
 	return result, nil
+}
+
+type macBattery struct{}
+
+func (b *macBattery) GetStatus(ctx context.Context) (*Status, error) {
+	/*
+			Now drawing from 'AC Power'
+		 -InternalBattery-0 (id=5963875)	80%; AC attached; not charging present: true
+	*/
+	out, err := exec.Command("/usr/bin/pmset", "-g", "batt").Output()
+	if err != nil {
+		return nil, err
+	}
+	re := regexp.MustCompile(`(?s)Now drawing from '(.*?)'.+\s(\d+)%;`)
+	matches := re.FindStringSubmatch(string(out))
+	if matches == nil {
+		return nil, fmt.Errorf("%q cannot be matched", out)
+	}
+	charge, err := strconv.ParseFloat(matches[2], 64)
+	if err != nil {
+		return nil, fmt.Errorf("%q cannot be parsed as a float", matches[2])
+
+	}
+	result := Status{timestamp: time.Now(), state: matches[1], charge: charge / 100}
+	return &result, nil
 }

@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"sync"
@@ -305,7 +305,7 @@ func (a *HaRestApi) GetState(ctx context.Context, sensor string) (HaRestMessage,
 			return result, err
 		}
 		defer response2.Body.Close()
-		respBytes, err2 := ioutil.ReadAll(response.Body)
+		respBytes, err2 := io.ReadAll(response.Body)
 		if err2 != nil {
 			logger.Warn("re-read failed", zap.Error(err2))
 			return result, err2
@@ -353,14 +353,11 @@ func (a *HaRestApi) UpdateState(ctx context.Context, sensor string, message HaRe
 	if err != nil {
 		return err
 	}
-	respBytes, err := ioutil.ReadAll(response.Body)
+	respBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		return err
 	}
 	response.Body.Close()
-	if err != nil {
-		return err
-	}
 	if response.StatusCode >= 400 {
 		logger.Warn(
 			"unexpected response",
@@ -372,5 +369,8 @@ func (a *HaRestApi) UpdateState(ctx context.Context, sensor string, message HaRe
 		return fmt.Errorf("Unexpected response %v", response.StatusCode)
 	}
 	a.lastValues[sensor] = LastValue{value: payload, expiry: time.Now().Add(a.valueCacheDuration)}
+	logger.Debug(
+		"sent",
+		zap.String("message", string(payload)))
 	return nil
 }

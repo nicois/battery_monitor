@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/user"
@@ -15,6 +16,8 @@ import (
 	"github.com/nicois/battery_monitor/power_sources"
 
 	"go.uber.org/zap"
+
+	_ "github.com/joho/godotenv/autoload"
 )
 
 var logger *zap.Logger
@@ -45,11 +48,7 @@ type Sender interface {
 	Send(ctx context.Context, logger *zap.Logger, message ntfy.Message) error
 }
 
-type PowerSource interface {
-	GetStatus(ctx context.Context) (*power_sources.Status, error)
-}
-
-func monitor[P PowerSource](ctx context.Context, p P) {
+func monitor[P power_sources.PowerSource](ctx context.Context, p P, once bool) {
 	ticker := time.NewTicker(time.Minute)
 	haToken := os.Getenv("HA_REST_API_TOKEN")
 	sensor := os.Getenv("HA_SENSOR")
@@ -68,6 +67,9 @@ func monitor[P PowerSource](ctx context.Context, p P) {
 			"%",
 			2,
 		)
+		if once {
+			return
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -103,15 +105,18 @@ func get_config() Config {
 
 func main() {
 	ctx := context.Background()
+	var once = flag.Bool("once", true, "only run a single time")
+	flag.Parse()
+
 	initLogger(ctx)
 	defer func() {
 		if logger != nil {
-			if err := logger.Sync(); !errors.Is(err, syscall.EINVAL) {
+			if err := logger.Sync(); err != nil && !errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.ENOTTY) {
 				fmt.Println(err)
 			}
 		}
 	}()
 
 	battery := power_sources.NewBattery()
-	monitor(ctx, battery)
+	monitor(ctx, battery, *once)
 }
